@@ -1,0 +1,23 @@
+# Dependency directories
+node_modules/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Databases and sessions
+*.sqlite
+*.db
+backend/database/profiles.sqlite
+.multibrowser/
+
+# Build outputs
+dist/
+build/
+target/
+ui/dist/
+ui/src-tauri/target/
+
+# OS files
+.DS_Store
+Thumbs.db

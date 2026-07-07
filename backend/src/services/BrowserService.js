@@ -1,0 +1,196 @@
+const puppeteer = require('puppeteer-extra');
+const StealthPlugin = require('puppeteer-extra-plugin-stealth');
+const path = require('path');
+const os = require('os');
+
+puppeteer.use(StealthPlugin());
+
+/**
+ * BrowserService
+ * Encapsulates the logic of launching and managing Chromium instances.
+ * Single Responsibility: Only deals with Puppeteer.
+ */
+class BrowserService {
+  async launchProfile(profile) {
+    console.log(`Launching profile: ${profile.name} (${profile.id})`);
+
+    const userDataDir = path.join(os.homedir(), '.multibrowser', 'profiles', profile.id);
+    let launchArgs = [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-infobars',
+      '--ignore-certificate-errors',
+      '--ignore-certificate-errors-spki-list',
+    ];
+
+    // Auto-load any unpacked extensions in backend/extensions directory
+    const fs = require('fs');
+    const extensionsDir = path.join(__dirname, '..', '..', 'extensions');
+    let hasExtensions = false;
+    if (fs.existsSync(extensionsDir)) {
+      const extFolders = fs.readdirSync(extensionsDir)
+        .map(folder => path.join(extensionsDir, folder))
+        .filter(p => fs.statSync(p).isDirectory() && fs.existsSync(path.join(p, 'manifest.json')));
+      
+      if (extFolders.length > 0) {
+        hasExtensions = true;
+        const pathsString = extFolders.join(',');
+        launchArgs.push(`--disable-extensions-except=${pathsString}`);
+        launchArgs.push(`--load-extension=${pathsString}`);
+      }
+    }
+
+    if (profile.proxy_host && profile.proxy_port) {
+      launchArgs.push(`--proxy-server=${profile.proxy_host}:${profile.proxy_port}`);
+    }
+
+    const browser = await puppeteer.launch({
+      headless: false,
+      userDataDir: userDataDir,
+      args: launchArgs,
+    });
+
+    const pages = await browser.pages();
+    const page = pages.length > 0 ? pages[0] : await browser.newPage();
+
+    if (profile.proxy_user && profile.proxy_pass) {
+      await page.authenticate({ username: profile.proxy_user, password: profile.proxy_pass });
+    }
+
+    if (profile.user_agent) {
+      await page.setUserAgent(profile.user_agent);
+    }
+
+    // Resolve Timezone (Sync with Proxy if 'auto')
+    let timezone = profile.timezone;
+    if (timezone === 'auto' || !timezone) {
+      try {
+        const response = await page.evaluate(async () => {
+          try {
+            const res = await fetch('http://ip-api.com/json');
+            return await res.json();
+          } catch (e) {
+            return null;
+          }
+        });
+        if (response && response.timezone) {
+          timezone = response.timezone;
+          console.log(`Auto-detected timezone from proxy: ${timezone}`);
+        } else {
+          timezone = 'UTC';
+        }
+      } catch (e) {
+        console.error('Failed to auto-detect timezone:', e.message);
+        timezone = 'UTC';
+      }
+    }
+
+    if (timezone) {
+      try {
+        await page.emulateTimezone(timezone);
+      } catch (e) {
+        console.error(`Failed to emulate timezone: ${e.message}`);
+      }
+    }
+
+    // Resolve Screen Resolution
+    let width = 1920;
+    let height = 1080;
+    if (profile.screen_resolution) {
+      const parts = profile.screen_resolution.split('x');
+      if (parts.length === 2) {
+        width = parseInt(parts[0], 10) || 1920;
+        height = parseInt(parts[1], 10) || 1080;
+      }
+    }
+    await page.setViewport({ width, height });
+
+    // Map WebGL Vendor & Renderer
+    let webglVendor = 'Google Inc. (NVIDIA)';
+    let webglRenderer = 'ANGLE (NVIDIA, NVIDIA GeForce RTX 4070 Direct3D11 vs_5_0 ps_5_0, D3D11)';
+
+    if (profile.webgl_vendor) {
+      const val = profile.webgl_vendor.toLowerCase();
+      if (val.includes('amd')) {
+        webglVendor = 'Google Inc. (ATI Technologies Inc.)';
+        webglRenderer = 'ANGLE (AMD, AMD Radeon(TM) Graphics Direct3D11 vs_5_0 ps_5_0, D3D11)';
+      } else if (val.includes('intel')) {
+        webglVendor = 'Google Inc. (Intel)';
+        webglRenderer = 'ANGLE (Intel, Intel(R) Iris(R) Xe Graphics Direct3D11 vs_5_0 ps_5_0, D3D11)';
+      } else if (val.includes('apple') || val.includes('m1') || val.includes('m2') || val.includes('m3')) {
+        webglVendor = 'Apple Inc.';
+        webglRenderer = 'Apple M2';
+      } else if (val.includes('nvidia')) {
+        webglVendor = 'Google Inc. (NVIDIA)';
+        webglRenderer = 'ANGLE (NVIDIA, NVIDIA GeForce RTX 4070 Direct3D11 vs_5_0 ps_5_0, D3D11)';
+      } else {
+        webglVendor = profile.webgl_vendor;
+        webglRenderer = profile.webgl_vendor.includes('(') ? profile.webgl_vendor : `ANGLE (${profile.webgl_vendor})`;
+      }
+    }
+
+    // CDP for deeper fingerprinting
+    const client = await page.target().createCDPSession();
+    await client.send('Page.addScriptToEvaluateOnNewDocument', {
+      source: `
+        // Spoof Hardware Specs
+        Object.defineProperty(navigator, 'hardwareConcurrency', { get: () => 8 });
+        Object.defineProperty(navigator, 'deviceMemory', { get: () => 8 });
+
+        // Spoof Screen Resolution
+        Object.defineProperty(screen, 'width', { get: () => ${width} });
+        Object.defineProperty(screen, 'height', { get: () => ${height} });
+        Object.defineProperty(screen, 'availWidth', { get: () => ${width} });
+        Object.defineProperty(screen, 'availHeight', { get: () => ${height} });
+
+        // Spoof WebGL Vendor & Renderer
+        if (window.WebGLRenderingContext) {
+          const getParameter = WebGLRenderingContext.prototype.getParameter;
+          WebGLRenderingContext.prototype.getParameter = function(parameter) {
+            if (parameter === 35660) return "${webglVendor}"; // UNMASKED_VENDOR_WEBGL
+            if (parameter === 35661) return "${webglRenderer}"; // UNMASKED_RENDERER_WEBGL
+            return getParameter.apply(this, arguments);
+          };
+        }
+        if (window.WebGL2RenderingContext) {
+          const getParameter2 = WebGL2RenderingContext.prototype.getParameter;
+          WebGL2RenderingContext.prototype.getParameter = function(parameter) {
+            if (parameter === 35660) return "${webglVendor}";
+            if (parameter === 35661) return "${webglRenderer}";
+            return getParameter2.apply(this, arguments);
+          };
+        }
+
+        // Spoof Canvas (Add subtle noise)
+        if (${profile.canvas_noise === 'enabled'} && window.CanvasRenderingContext2D) {
+          const originalGetImageData = CanvasRenderingContext2D.prototype.getImageData;
+          CanvasRenderingContext2D.prototype.getImageData = function() {
+            const res = originalGetImageData.apply(this, arguments);
+            if (res.data && res.data.length > 4) {
+              res.data[res.data.length - 2] = res.data[res.data.length - 2] ^ 1;
+              res.data[res.data.length - 3] = res.data[res.data.length - 3] ^ 1;
+            }
+            return res;
+          };
+        }
+
+        // Spoof Audio Context (Add subtle noise)
+        if (${profile.audio_noise === 'enabled'} && window.AudioBuffer) {
+          const originalGetChannelData = AudioBuffer.prototype.getChannelData;
+          AudioBuffer.prototype.getChannelData = function() {
+            const channelData = originalGetChannelData.apply(this, arguments);
+            if (channelData && channelData.length > 10) {
+              channelData[0] += 0.0000001;
+              channelData[channelData.length - 1] -= 0.0000001;
+            }
+            return channelData;
+          };
+        }
+      `
+    });
+
+    return { status: 'launched', profileId: profile.id };
+  }
+}
+
+module.exports = BrowserService;
