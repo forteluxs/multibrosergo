@@ -23,6 +23,37 @@ class BrowserService {
       '--ignore-certificate-errors-spki-list',
     ];
 
+    // WebRTC Leak Protection
+    if (profile.webrtc_mode === 'blocked') {
+      launchArgs.push('--disable-webrtc');
+      launchArgs.push('--disable-peer-connection');
+    }
+
+    // Resolve Language Code from Geolocation Country
+    let langCode = 'en-US';
+    if (profile.country) {
+      const countryUpper = profile.country.toUpperCase();
+      const langMap = {
+        'INDONESIA': 'id-ID',
+        'SINGAPORE': 'en-SG',
+        'UNITED STATES': 'en-US',
+        'UNITED KINGDOM': 'en-GB',
+        'GERMANY': 'de-DE',
+        'FRANCE': 'fr-FR',
+        'JAPAN': 'ja-JP',
+        'TAIWAN': 'zh-TW',
+        'CHINA': 'zh-CN',
+        'INDIA': 'en-IN'
+      };
+      for (const [cName, code] of Object.entries(langMap)) {
+        if (countryUpper.includes(cName)) {
+          langCode = code;
+          break;
+        }
+      }
+    }
+    launchArgs.push(`--lang=${langCode}`);
+
     // Auto-load any unpacked extensions in backend/extensions directory
     const fs = require('fs');
     const extensionsDir = path.join(__dirname, '..', '..', 'extensions');
@@ -105,6 +136,28 @@ class BrowserService {
     }
     await page.setViewport({ width, height });
 
+    // Emulate Geolocation Coordinates
+    if (profile.latitude && profile.longitude) {
+      try {
+        const context = browser.defaultBrowserContext();
+        // Override permissions dynamically to allow geolocation APIs
+        await context.overridePermissions('https://www.google.com', ['geolocation']);
+        await context.overridePermissions('https://browserleaks.com', ['geolocation']);
+        await context.overridePermissions('https://whoer.net', ['geolocation']);
+        await context.overridePermissions('https://iplocation.net', ['geolocation']);
+        await context.overridePermissions('https://ip-api.com', ['geolocation']);
+        
+        await page.setGeolocation({
+          latitude: parseFloat(profile.latitude),
+          longitude: parseFloat(profile.longitude),
+          accuracy: 100
+        });
+        console.log(`[Geolocation Emulator] Enabled coordinates: ${profile.latitude}, ${profile.longitude}`);
+      } catch (e) {
+        console.warn('[Geolocation Emulator] Failed to override permissions or set coordinates:', e.message);
+      }
+    }
+
     // Map WebGL Vendor & Renderer
     let webglVendor = 'Google Inc. (NVIDIA)';
     let webglRenderer = 'ANGLE (NVIDIA, NVIDIA GeForce RTX 4070 Direct3D11 vs_5_0 ps_5_0, D3D11)';
@@ -129,6 +182,19 @@ class BrowserService {
       }
     }
 
+    // Parse OS for Client Hints
+    let platformName = 'Windows';
+    const ua = profile.user_agent || '';
+    if (ua.includes('Macintosh') || ua.includes('Mac OS X')) {
+      platformName = 'macOS';
+    } else if (ua.includes('Linux')) {
+      platformName = 'Linux';
+    }
+    let brandName = 'Google Chrome';
+    if (ua.includes('Edg/')) {
+      brandName = 'Microsoft Edge';
+    }
+
     // CDP for deeper fingerprinting
     const client = await page.target().createCDPSession();
     await client.send('Page.addScriptToEvaluateOnNewDocument', {
@@ -142,6 +208,34 @@ class BrowserService {
         Object.defineProperty(screen, 'height', { get: () => ${height} });
         Object.defineProperty(screen, 'availWidth', { get: () => ${width} });
         Object.defineProperty(screen, 'availHeight', { get: () => ${height} });
+
+        // Spoof Language
+        Object.defineProperty(navigator, 'language', { get: () => "${langCode}" });
+        Object.defineProperty(navigator, 'languages', { get: () => ["${langCode}", "${langCode.split('-')[0]}"] });
+
+        // Spoof User-Agent Client Hints
+        if (window.navigator.userAgentData) {
+          const platform = "${platformName}";
+          const brandName = "${brandName}";
+          Object.defineProperty(navigator, 'userAgentData', {
+            get: () => ({
+              brands: [
+                { brand: brandName, version: '120' },
+                { brand: 'Not A(Brand', version: '99' },
+                { brand: 'Chromium', version: '120' }
+              ],
+              mobile: false,
+              platform: platform,
+              getHighEntropyValues: (hints) => Promise.resolve({
+                platform: platform,
+                platformVersion: '10.0.0',
+                architecture: 'x86',
+                model: '',
+                uaFullVersion: '120.0.0.0'
+              })
+            })
+          });
+        }
 
         // Spoof WebGL Vendor & Renderer
         if (window.WebGLRenderingContext) {

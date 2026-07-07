@@ -20,13 +20,18 @@ function getProxyIpInfo(host, port) {
       res.on('end', () => {
         try {
           const json = JSON.parse(data);
-          resolve({ ip: json.query || host, country: json.country || 'Unknown' });
+          resolve({ 
+            ip: json.query || host, 
+            country: json.country || 'Unknown',
+            lat: json.lat || null,
+            lon: json.lon || null
+          });
         } catch (e) {
-          resolve({ ip: host, country: 'Unknown' });
+          resolve({ ip: host, country: 'Unknown', lat: null, lon: null });
         }
       });
     }).on('error', () => {
-      resolve({ ip: host, country: 'Offline/Unknown' });
+      resolve({ ip: host, country: 'Offline/Unknown', lat: null, lon: null });
     });
   });
 }
@@ -39,13 +44,18 @@ function getDirectIpInfo() {
       res.on('end', () => {
         try {
           const json = JSON.parse(data);
-          resolve({ ip: json.query || 'Direct', country: json.country || 'Local' });
+          resolve({ 
+            ip: json.query || 'Direct', 
+            country: json.country || 'Local',
+            lat: json.lat || null,
+            lon: json.lon || null
+          });
         } catch (e) {
-          resolve({ ip: 'Direct', country: 'Local' });
+          resolve({ ip: 'Direct', country: 'Local', lat: null, lon: null });
         }
       });
     }).on('error', () => {
-      resolve({ ip: 'Direct', country: 'Local' });
+      resolve({ ip: 'Direct', country: 'Local', lat: null, lon: null });
     });
   });
 }
@@ -63,12 +73,16 @@ class ProfileService {
   async createProfile(data) {
     let resolvedIp = 'Direct';
     let resolvedCountry = 'Local';
+    let resolvedLat = null;
+    let resolvedLon = null;
     
     if (data.proxy_host && data.proxy_port) {
       try {
         const info = await getProxyIpInfo(data.proxy_host, parseInt(data.proxy_port, 10));
         resolvedIp = info.ip;
         resolvedCountry = info.country;
+        resolvedLat = info.lat;
+        resolvedLon = info.lon;
       } catch (e) {
         resolvedIp = data.proxy_host;
         resolvedCountry = 'Error';
@@ -78,6 +92,8 @@ class ProfileService {
         const info = await getDirectIpInfo();
         resolvedIp = info.ip;
         resolvedCountry = info.country;
+        resolvedLat = info.lat;
+        resolvedLon = info.lon;
       } catch (e) {}
     }
 
@@ -98,7 +114,9 @@ class ProfileService {
       ip_address: resolvedIp,
       country: resolvedCountry,
       canvas_noise: data.canvas_noise || 'disabled',
-      audio_noise: data.audio_noise || 'disabled'
+      audio_noise: data.audio_noise || 'disabled',
+      latitude: resolvedLat,
+      longitude: resolvedLon
     });
 
     return await this.profileRepository.save(newProfile);

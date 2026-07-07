@@ -15,6 +15,8 @@ export interface Profile {
   country?: string;
   canvas_noise?: string;
   audio_noise?: string;
+  latitude?: number;
+  longitude?: number;
 }
 
 export interface CreateProfileDto {

@@ -22,7 +22,8 @@ class SQLiteProfileRepository extends IProfileRepository {
         proxy_host TEXT, proxy_port INTEGER, proxy_user TEXT, proxy_pass TEXT,
         user_agent TEXT, screen_resolution TEXT, webgl_vendor TEXT,
         timezone TEXT, webrtc_mode TEXT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        ip_address TEXT, country TEXT, canvas_noise TEXT, audio_noise TEXT
+        ip_address TEXT, country TEXT, canvas_noise TEXT, audio_noise TEXT,
+        latitude REAL, longitude REAL
       )
     `;
     this.db.run(query, () => {
@@ -31,6 +32,8 @@ class SQLiteProfileRepository extends IProfileRepository {
       this.db.run(`ALTER TABLE profiles ADD COLUMN country TEXT`, () => {});
       this.db.run(`ALTER TABLE profiles ADD COLUMN canvas_noise TEXT`, () => {});
       this.db.run(`ALTER TABLE profiles ADD COLUMN audio_noise TEXT`, () => {});
+      this.db.run(`ALTER TABLE profiles ADD COLUMN latitude REAL`, () => {});
+      this.db.run(`ALTER TABLE profiles ADD COLUMN longitude REAL`, () => {});
     });
   }
 
@@ -39,8 +42,8 @@ class SQLiteProfileRepository extends IProfileRepository {
       const sql = `INSERT INTO profiles (
         id, name, proxy_host, proxy_port, proxy_user, proxy_pass,
         user_agent, screen_resolution, webgl_vendor, timezone, webrtc_mode, created_at,
-        ip_address, country, canvas_noise, audio_noise
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+        ip_address, country, canvas_noise, audio_noise, latitude, longitude
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
       this.db.run(sql, [
         profile.id,
         profile.name,
@@ -57,7 +60,9 @@ class SQLiteProfileRepository extends IProfileRepository {
         profile.ip_address,
         profile.country,
         profile.canvas_noise,
-        profile.audio_noise
+        profile.audio_noise,
+        profile.latitude,
+        profile.longitude
       ], function(err) {
         if (err) reject(err);
         else resolve(profile);

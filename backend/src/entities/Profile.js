@@ -6,7 +6,7 @@ class Profile {
   constructor({
     id, name, proxy_host, proxy_port, proxy_user, proxy_pass,
     user_agent, screen_resolution, webgl_vendor, timezone, webrtc_mode, created_at,
-    ip_address, country, canvas_noise, audio_noise
+    ip_address, country, canvas_noise, audio_noise, latitude, longitude
   }) {
     this.id = id;
     this.name = name;
@@ -24,6 +24,8 @@ class Profile {
     this.country = country;
     this.canvas_noise = canvas_noise;
     this.audio_noise = audio_noise;
+    this.latitude = latitude;
+    this.longitude = longitude;
   }
 }
 
