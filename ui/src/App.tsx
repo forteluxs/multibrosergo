@@ -32,10 +32,15 @@ const UA_PRESETS = [
 ];
 
 function App() {
-  const { profiles, loading, error, createProfile, launchProfile, deleteProfile } = useProfiles();
+  const { profiles, loading, error, createProfile, launchProfile, deleteProfile, updateProfileNotes } = useProfiles();
   
   // Basic states
   const [profileName, setProfileName] = useState('');
+  const [profileNotes, setProfileNotes] = useState('');
+  
+  // Inline editing notes states
+  const [editingNotesId, setEditingNotesId] = useState<string | null>(null);
+  const [tempNotesValue, setTempNotesValue] = useState('');
   
   // Proxy states
   const [proxyHost, setProxyHost] = useState('');
@@ -140,13 +145,15 @@ function App() {
       timezone: timezone,
       webrtc_mode: webrtcMode,
       canvas_noise: canvasNoise ? 'enabled' : 'disabled',
-      audio_noise: audioNoise ? 'enabled' : 'disabled'
+      audio_noise: audioNoise ? 'enabled' : 'disabled',
+      notes: profileNotes.trim() || undefined
     };
 
     try {
       await createProfile(payload);
       // Reset form text fields on success
       setProfileName('');
+      setProfileNotes('');
       setProxyHost('');
       setProxyPort('');
       setProxyUser('');
@@ -157,6 +164,20 @@ function App() {
       randomizeFingerprints();
     } catch (err) {
       console.error('Failed to create profile:', err);
+    }
+  };
+
+  const startEditingNotes = (id: string, currentNotes: string) => {
+    setEditingNotesId(id);
+    setTempNotesValue(currentNotes || '');
+  };
+
+  const saveNotes = async (id: string) => {
+    try {
+      await updateProfileNotes(id, tempNotesValue.trim());
+      setEditingNotesId(null);
+    } catch (e) {
+      console.error('Failed to save profile notes:', e);
     }
   };
 
@@ -212,6 +233,18 @@ function App() {
                 value={profileName}
                 onChange={(e) => setProfileName(e.target.value)}
                 required
+              />
+            </div>
+
+            {/* Account Usage / Notes */}
+            <div className="form-group">
+              <label htmlFor="notes">Account Usage / Notes (Optional)</label>
+              <input 
+                id="notes"
+                type="text" 
+                placeholder="e.g. Used for Google Ad Account #3" 
+                value={profileNotes}
+                onChange={(e) => setProfileNotes(e.target.value)}
               />
             </div>
 
@@ -517,6 +550,86 @@ function App() {
                       <span className="os-badge" style={{ backgroundColor: 'rgba(16, 185, 129, 0.15)', color: '#34d399', border: '1px solid rgba(16, 185, 129, 0.25)', textTransform: 'none' }}>
                         IP: {profile.ip_address || 'Direct'}
                       </span>
+                    </div>
+
+                    {/* Notes / Account Tagging */}
+                    <div className="profile-notes-section" style={{
+                      marginTop: '0.75rem',
+                      padding: '0.65rem 0.8rem',
+                      backgroundColor: 'rgba(255, 255, 255, 0.02)',
+                      borderLeft: '3px solid var(--primary-color)',
+                      borderRight: '1px solid rgba(255, 255, 255, 0.03)',
+                      borderTop: '1px solid rgba(255, 255, 255, 0.03)',
+                      borderBottom: '1px solid rgba(255, 255, 255, 0.03)',
+                      borderRadius: '4px',
+                      fontSize: '0.85rem'
+                    }}>
+                      {editingNotesId === profile.id ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                          <textarea
+                            value={tempNotesValue}
+                            onChange={(e) => setTempNotesValue(e.target.value)}
+                            placeholder="e.g. Google Ads #3 / Used for Facebook Account"
+                            style={{
+                              width: '100%',
+                              minHeight: '50px',
+                              backgroundColor: 'rgba(0, 0, 0, 0.25)',
+                              color: '#fff',
+                              border: '1px solid rgba(255, 255, 255, 0.1)',
+                              borderRadius: '4px',
+                              padding: '0.4rem',
+                              fontSize: '0.8rem',
+                              resize: 'vertical',
+                              outline: 'none',
+                              fontFamily: 'inherit'
+                            }}
+                          />
+                          <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
+                            <button 
+                              type="button"
+                              onClick={() => setEditingNotesId(null)}
+                              className="btn btn-secondary"
+                              style={{ padding: '0.2rem 0.5rem', fontSize: '0.75rem' }}
+                            >
+                              Cancel
+                            </button>
+                            <button 
+                              type="button"
+                              onClick={() => saveNotes(profile.id)}
+                              className="btn btn-primary"
+                              style={{ padding: '0.2rem 0.6rem', fontSize: '0.75rem', backgroundColor: '#10b981', border: '1px solid #059669' }}
+                            >
+                              Save
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem' }}>
+                          <div style={{ color: 'rgba(255, 255, 255, 0.7)', fontStyle: profile.notes ? 'normal' : 'italic', wordBreak: 'break-word', fontSize: '0.8rem', flex: 1 }}>
+                            {profile.notes ? (
+                              <span>📌 <strong>Usage:</strong> {profile.notes}</span>
+                            ) : (
+                              <span style={{ color: 'rgba(255, 255, 255, 0.35)' }}>✏️ Add usage notes (e.g. Shopee, Gmail)...</span>
+                            )}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => startEditingNotes(profile.id, profile.notes || '')}
+                            style={{
+                              background: 'rgba(99, 102, 241, 0.1)',
+                              border: '1px solid rgba(99, 102, 241, 0.2)',
+                              borderRadius: '4px',
+                              color: 'var(--primary-color)',
+                              cursor: 'pointer',
+                              padding: '0.15rem 0.4rem',
+                              fontSize: '0.75rem',
+                              fontWeight: 500
+                            }}
+                          >
+                            Edit
+                          </button>
+                        </div>
+                      )}
                     </div>
 
                     {/* Fingerprint List */}

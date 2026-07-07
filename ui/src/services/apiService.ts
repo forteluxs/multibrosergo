@@ -54,5 +54,17 @@ export const ApiService = {
       throw new Error(`Failed to fetch free proxy: ${response.statusText}`);
     }
     return response.json();
+  },
+
+  async updateProfileNotes(id: string, notes: string): Promise<Profile> {
+    const response = await fetch(`${API_BASE_URL}/${id}/notes`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ notes }),
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to update profile notes: ${response.statusText}`);
+    }
+    return response.json();
   }
 };

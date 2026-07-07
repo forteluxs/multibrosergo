@@ -116,10 +116,16 @@ class ProfileService {
       canvas_noise: data.canvas_noise || 'disabled',
       audio_noise: data.audio_noise || 'disabled',
       latitude: resolvedLat,
-      longitude: resolvedLon
+      longitude: resolvedLon,
+      notes: data.notes || ''
     });
 
     return await this.profileRepository.save(newProfile);
+  }
+
+  async updateProfileNotes(id, notes) {
+    await this.profileRepository.update(id, { notes });
+    return await this.profileRepository.findById(id);
   }
 
   async getAllProfiles() {

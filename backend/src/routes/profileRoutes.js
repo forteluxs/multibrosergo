@@ -105,6 +105,7 @@ module.exports = function(profileController) {
 
   router.post('/:id/launch', profileController.launch);
   router.delete('/:id', profileController.delete);
+  router.put('/:id/notes', profileController.updateNotes);
 
   return router;
 };

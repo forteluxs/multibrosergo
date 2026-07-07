@@ -17,6 +17,7 @@ export interface Profile {
   audio_noise?: string;
   latitude?: number;
   longitude?: number;
+  notes?: string;
 }
 
 export interface CreateProfileDto {
@@ -32,4 +33,5 @@ export interface CreateProfileDto {
   webrtc_mode?: string;
   canvas_noise?: string;
   audio_noise?: string;
+  notes?: string;
 }

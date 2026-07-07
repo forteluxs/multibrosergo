@@ -13,6 +13,18 @@ class ProfileController {
     this.getAll = this.getAll.bind(this);
     this.launch = this.launch.bind(this);
     this.delete = this.delete.bind(this);
+    this.updateNotes = this.updateNotes.bind(this);
+  }
+
+  async updateNotes(req, res) {
+    try {
+      const { id } = req.params;
+      const { notes } = req.body;
+      const profile = await this.profileService.updateProfileNotes(id, notes);
+      res.status(200).json(profile);
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
   }
 
   async create(req, res) {

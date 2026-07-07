@@ -52,9 +52,20 @@ export function useProfiles() {
     }
   };
 
+  const updateProfileNotes = async (id: string, notes: string) => {
+    try {
+      setError(null);
+      const updatedProfile = await ApiService.updateProfileNotes(id, notes);
+      setProfiles((prev) => prev.map((p) => p.id === id ? updatedProfile : p));
+    } catch (err: any) {
+      setError(err.message || 'Failed to update profile notes');
+      throw err;
+    }
+  };
+
   useEffect(() => {
     fetchProfiles();
   }, [fetchProfiles]);
 
-  return { profiles, loading, error, createProfile, launchProfile, deleteProfile, refresh: fetchProfiles };
+  return { profiles, loading, error, createProfile, launchProfile, deleteProfile, updateProfileNotes, refresh: fetchProfiles };
 }
