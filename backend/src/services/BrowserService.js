@@ -237,6 +237,85 @@ class BrowserService {
           });
         }
 
+        // Spoof System Fonts (Font Fingerprinting Protection)
+        const winFonts = ['Arial', 'Arial Black', 'Calibri', 'Cambria', 'Comic Sans MS', 'Consolas', 'Courier New', 'Georgia', 'Impact', 'Lucida Console', 'Lucida Sans Unicode', 'Microsoft Sans Serif', 'Segoe UI', 'Tahoma', 'Times New Roman', 'Trebuchet MS', 'Verdana'];
+        const macFonts = ['Arial', 'Arial Black', 'Brush Script MT', 'Courier New', 'Georgia', 'Geneva', 'Helvetica', 'Helvetica Neue', 'Impact', 'Lucida Grande', 'Monaco', 'Optima', 'Palatino', 'Times New Roman', 'Trebuchet MS', 'Verdana'];
+        const linuxFonts = ['Liberation Sans', 'Liberation Serif', 'Liberation Mono', 'DejaVu Sans', 'DejaVu Serif', 'DejaVu Sans Mono', 'Ubuntu', 'FreeSans', 'FreeSerif', 'FreeMono'];
+
+        const targetOS = "${platformName}";
+        let allowedFonts = [];
+        let blockedFonts = [];
+
+        if (targetOS === 'Windows') {
+          allowedFonts = winFonts;
+          blockedFonts = linuxFonts;
+        } else if (targetOS === 'macOS') {
+          allowedFonts = macFonts;
+          blockedFonts = linuxFonts;
+        } else {
+          allowedFonts = linuxFonts;
+          blockedFonts = [];
+        }
+
+        if (window.FontFaceSet) {
+          const originalCheck = FontFaceSet.prototype.check;
+          FontFaceSet.prototype.check = function(font, text) {
+            const fontName = font.replace(/[\\d\\.]+(px|em|rem|pt)\\s+/, '').replace(/['"]/g, '').split(',')[0].trim();
+            if (blockedFonts.some(f => fontName.toLowerCase().includes(f.toLowerCase()))) {
+              return false;
+            }
+            if (allowedFonts.some(f => fontName.toLowerCase().includes(f.toLowerCase()))) {
+              return true;
+            }
+            return originalCheck.apply(this, arguments);
+          };
+        }
+
+        if (window.CanvasRenderingContext2D) {
+          const originalMeasureText = CanvasRenderingContext2D.prototype.measureText;
+          CanvasRenderingContext2D.prototype.measureText = function(text) {
+            const fontStr = this.font || '';
+            const matches = fontStr.match(/(?:^|\\s|['"])([^,[\\s'"]+)(?:['"]|,|$)/);
+            let primaryFont = matches ? matches[1].trim() : '';
+            primaryFont = primaryFont.replace(/^(normal|italic|oblique|bold|bolder|lighter|\\d+|[\\d\\.]+(px|em|rem|pt|%))\\s+/, '').trim();
+
+            if (primaryFont) {
+              if (blockedFonts.some(f => primaryFont.toLowerCase() === f.toLowerCase())) {
+                const originalFont = this.font;
+                this.font = fontStr.replace(primaryFont, 'sans-serif');
+                const res = originalMeasureText.apply(this, arguments);
+                this.font = originalFont;
+                return res;
+              }
+              
+              if (allowedFonts.some(f => primaryFont.toLowerCase() === f.toLowerCase())) {
+                const res = originalMeasureText.apply(this, arguments);
+                const originalFont = this.font;
+                this.font = fontStr.replace(primaryFont, 'monospace');
+                const monoMetrics = originalMeasureText.apply(this, arguments);
+                this.font = originalFont;
+
+                if (res.width === monoMetrics.width) {
+                  let hash = 0;
+                  for (let i = 0; i < text.length; i++) {
+                    hash = text.charCodeAt(i) + ((hash << 5) - hash);
+                  }
+                  const offset = (Math.abs(hash) % 5) + 1;
+                  return new Proxy(res, {
+                    get(target, prop) {
+                      if (prop === 'width') {
+                        return target.width + offset;
+                      }
+                      return target[prop];
+                    }
+                  });
+                }
+              }
+            }
+            return originalMeasureText.apply(this, arguments);
+          };
+        }
+
         // Spoof WebGL Vendor & Renderer
         if (window.WebGLRenderingContext) {
           const getParameter = WebGLRenderingContext.prototype.getParameter;
