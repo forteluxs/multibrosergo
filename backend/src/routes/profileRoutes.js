@@ -106,6 +106,8 @@ module.exports = function(profileController) {
   router.post('/:id/launch', profileController.launch);
   router.delete('/:id', profileController.delete);
   router.put('/:id/notes', profileController.updateNotes);
+  router.get('/:id/cookies', profileController.getCookies);
+  router.post('/:id/cookies', profileController.setCookies);
 
   return router;
 };

@@ -364,6 +364,69 @@ class BrowserService {
 
     return { status: 'launched', profileId: profile.id };
   }
+
+  async getCookies(profile) {
+    const userDataDir = path.join(os.homedir(), '.multibrowser', 'profiles', profile.id);
+    const browser = await puppeteer.launch({
+      headless: true,
+      userDataDir: userDataDir,
+      args: ['--no-sandbox', '--disable-setuid-sandbox']
+    });
+    try {
+      const page = await browser.newPage();
+      const client = await page.target().createCDPSession();
+      // CDP Network.getAllCookies returns cookies across ALL domains in this profile
+      const { cookies } = await client.send('Network.getAllCookies');
+      return cookies;
+    } finally {
+      await browser.close();
+    }
+  }
+
+  async setCookies(profile, cookies) {
+    const userDataDir = path.join(os.homedir(), '.multibrowser', 'profiles', profile.id);
+    const browser = await puppeteer.launch({
+      headless: true,
+      userDataDir: userDataDir,
+      args: ['--no-sandbox', '--disable-setuid-sandbox']
+    });
+    try {
+      const page = await browser.newPage();
+      const client = await page.target().createCDPSession();
+      // Clear existing cookies to avoid duplicates or session conflicts
+      await client.send('Network.clearBrowserCookies');
+      
+      if (cookies && cookies.length > 0) {
+        // Map any cookie fields that might have different names from external exporters
+        const formattedCookies = cookies.map(c => {
+          // If expires field is present but is not a valid timestamp, make it undefined
+          let expiryVal = undefined;
+          if (c.expirationDate) {
+            expiryVal = Math.round(c.expirationDate);
+          } else if (typeof c.expiry === 'number') {
+            expiryVal = Math.round(c.expiry);
+          } else if (typeof c.expires === 'number') {
+            expiryVal = Math.round(c.expires);
+          }
+          
+          return {
+            name: c.name || '',
+            value: c.value || '',
+            domain: c.domain || '',
+            path: c.path || '/',
+            secure: typeof c.secure === 'boolean' ? c.secure : (c.secure === 'true'),
+            httpOnly: typeof c.httpOnly === 'boolean' ? c.httpOnly : (c.httpOnly === 'true'),
+            sameSite: c.sameSite || undefined,
+            expires: expiryVal
+          };
+        });
+        
+        await client.send('Network.setCookies', { cookies: formattedCookies });
+      }
+    } finally {
+      await browser.close();
+    }
+  }
 }
 
 module.exports = BrowserService;

@@ -14,6 +14,37 @@ class ProfileController {
     this.launch = this.launch.bind(this);
     this.delete = this.delete.bind(this);
     this.updateNotes = this.updateNotes.bind(this);
+    this.getCookies = this.getCookies.bind(this);
+    this.setCookies = this.setCookies.bind(this);
+  }
+
+  async getCookies(req, res) {
+    try {
+      const { id } = req.params;
+      const profile = await this.profileService.getProfileById(id);
+      if (!profile) {
+        return res.status(404).json({ error: 'Profile not found' });
+      }
+      const cookies = await this.browserService.getCookies(profile);
+      res.status(200).json(cookies);
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  }
+
+  async setCookies(req, res) {
+    try {
+      const { id } = req.params;
+      const { cookies } = req.body;
+      const profile = await this.profileService.getProfileById(id);
+      if (!profile) {
+        return res.status(404).json({ error: 'Profile not found' });
+      }
+      await this.browserService.setCookies(profile, cookies);
+      res.status(200).json({ message: 'Cookies imported successfully' });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
   }
 
   async updateNotes(req, res) {

@@ -66,5 +66,24 @@ export const ApiService = {
       throw new Error(`Failed to update profile notes: ${response.statusText}`);
     }
     return response.json();
+  },
+
+  async getProfileCookies(id: string): Promise<any[]> {
+    const response = await fetch(`${API_BASE_URL}/${id}/cookies`);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch cookies: ${response.statusText}`);
+    }
+    return response.json();
+  },
+
+  async setProfileCookies(id: string, cookies: any[]): Promise<void> {
+    const response = await fetch(`${API_BASE_URL}/${id}/cookies`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cookies }),
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to import cookies: ${response.statusText}`);
+    }
   }
 };

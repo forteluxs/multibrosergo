@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useProfiles } from './hooks/useProfiles';
 import { ApiService } from './services/apiService';
+import { Profile } from './types/Profile';
 import './App.css';
 
 // User Agent Presets
@@ -42,6 +43,15 @@ function App() {
   const [editingNotesId, setEditingNotesId] = useState<string | null>(null);
   const [tempNotesValue, setTempNotesValue] = useState('');
   
+  // Cookie manager states
+  const [isCookiesModalOpen, setIsCookiesModalOpen] = useState(false);
+  const [activeCookiesProfile, setActiveCookiesProfile] = useState<Profile | null>(null);
+  const [cookiesList, setCookiesList] = useState<any[]>([]);
+  const [cookiesModalTab, setCookiesModalTab] = useState<'view' | 'import' | 'export'>('view');
+  const [cookieImportText, setCookieImportText] = useState('');
+  const [cookiesLoading, setCookiesLoading] = useState(false);
+  const [cookiesError, setCookiesError] = useState<string | null>(null);
+
   // Proxy states
   const [proxyHost, setProxyHost] = useState('');
   const [proxyPort, setProxyPort] = useState('');
@@ -179,6 +189,65 @@ function App() {
     } catch (e) {
       console.error('Failed to save profile notes:', e);
     }
+  };
+
+  const openCookiesModal = async (profile: Profile) => {
+    setActiveCookiesProfile(profile);
+    setIsCookiesModalOpen(true);
+    setCookiesModalTab('view');
+    setCookieImportText('');
+    setCookiesError(null);
+    await refreshCookies(profile.id);
+  };
+
+  const refreshCookies = async (profileId: string) => {
+    try {
+      setCookiesLoading(true);
+      setCookiesError(null);
+      const cookies = await ApiService.getProfileCookies(profileId);
+      setCookiesList(cookies);
+    } catch (e: any) {
+      setCookiesError(e.message || 'Failed to fetch cookies');
+    } finally {
+      setCookiesLoading(false);
+    }
+  };
+
+  const handleImportCookies = async () => {
+    if (!activeCookiesProfile) return;
+    try {
+      setCookiesLoading(true);
+      setCookiesError(null);
+      let parsedCookies: any[];
+      try {
+        parsedCookies = JSON.parse(cookieImportText.trim());
+        if (!Array.isArray(parsedCookies)) {
+          throw new Error('Cookies must be a JSON array of cookie objects.');
+        }
+      } catch (err: any) {
+        throw new Error(`Invalid JSON format: ${err.message}`);
+      }
+
+      await ApiService.setProfileCookies(activeCookiesProfile.id, parsedCookies);
+      setCookieImportText('');
+      await refreshCookies(activeCookiesProfile.id);
+      setCookiesModalTab('view');
+    } catch (e: any) {
+      setCookiesError(e.message || 'Failed to import cookies');
+    } finally {
+      setCookiesLoading(false);
+    }
+  };
+
+  const handleExportCookies = () => {
+    if (!activeCookiesProfile || cookiesList.length === 0) return;
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(cookiesList, null, 2));
+    const downloadAnchor = document.createElement('a');
+    downloadAnchor.setAttribute("href", dataStr);
+    downloadAnchor.setAttribute("download", `${activeCookiesProfile.name.toLowerCase().replace(/\s+/g, '_')}_cookies.json`);
+    document.body.appendChild(downloadAnchor);
+    downloadAnchor.click();
+    downloadAnchor.remove();
   };
 
   const getOSFromUA = (ua: string) => {
@@ -669,12 +738,29 @@ function App() {
                     </div>
 
                     {/* Action buttons */}
-                    <div className="profile-card-actions">
+                    <div className="profile-card-actions" style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
                       <button 
                         className="btn btn-launch" 
                         onClick={() => launchProfile(profile.id)}
+                        style={{ flex: 2, minWidth: '120px' }}
                       >
                         🚀 Launch Browser
+                      </button>
+                      <button 
+                        type="button"
+                        className="btn" 
+                        title="Manage Cookies"
+                        onClick={() => openCookiesModal(profile)}
+                        style={{ 
+                          flex: 1.2, 
+                          minWidth: '85px',
+                          background: 'rgba(251, 191, 36, 0.12)',
+                          border: '1px solid rgba(251, 191, 36, 0.22)',
+                          color: '#fbbf24',
+                          fontWeight: 500
+                        }}
+                      >
+                        🍪 Cookies
                       </button>
                       <button 
                         className="btn btn-delete btn-icon-only" 
@@ -684,6 +770,7 @@ function App() {
                             deleteProfile(profile.id);
                           }
                         }}
+                        style={{ width: '38px', minWidth: '38px' }}
                       >
                         🗑️
                       </button>
@@ -695,6 +782,221 @@ function App() {
           )}
         </section>
       </div>
+
+      {/* Cookie Manager Modal */}
+      {isCookiesModalOpen && activeCookiesProfile && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.75)',
+          backdropFilter: 'blur(8px)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 9999,
+          padding: '1rem'
+        }}>
+          <div className="glass-panel" style={{
+            width: '100%',
+            maxWidth: '750px',
+            maxHeight: '85vh',
+            display: 'flex',
+            flexDirection: 'column',
+            padding: '1.5rem',
+            boxShadow: '0 20px 40px rgba(0, 0, 0, 0.5)',
+            border: '1px solid rgba(255, 255, 255, 0.1)'
+          }}>
+            {/* Modal Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '1.25rem', color: '#fff' }}>🍪 Cookie Manager</h3>
+                <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
+                  Managing session keys for profile: <strong>{activeCookiesProfile.name}</strong>
+                </div>
+              </div>
+              <button 
+                onClick={() => setIsCookiesModalOpen(false)}
+                style={{
+                  background: 'rgba(255, 255, 255, 0.05)',
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  color: '#fff',
+                  borderRadius: '50%',
+                  width: '32px',
+                  height: '32px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '0.9rem'
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Modal Tabs */}
+            <div style={{ display: 'flex', gap: '0.5rem', borderBottom: '1px solid rgba(255, 255, 255, 0.1)', paddingBottom: '0.5rem', marginBottom: '1rem' }}>
+              <button 
+                onClick={() => setCookiesModalTab('view')}
+                style={{
+                  padding: '0.5rem 1rem',
+                  backgroundColor: cookiesModalTab === 'view' ? 'rgba(99, 102, 241, 0.15)' : 'transparent',
+                  border: cookiesModalTab === 'view' ? '1px solid rgba(99, 102, 241, 0.3)' : '1px solid transparent',
+                  color: cookiesModalTab === 'view' ? 'var(--primary-color)' : 'var(--text-secondary)',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontWeight: 500,
+                  fontSize: '0.85rem'
+                }}
+              >
+                View Cookies ({cookiesList.length})
+              </button>
+              <button 
+                onClick={() => setCookiesModalTab('import')}
+                style={{
+                  padding: '0.5rem 1rem',
+                  backgroundColor: cookiesModalTab === 'import' ? 'rgba(99, 102, 241, 0.15)' : 'transparent',
+                  border: cookiesModalTab === 'import' ? '1px solid rgba(99, 102, 241, 0.3)' : '1px solid transparent',
+                  color: cookiesModalTab === 'import' ? 'var(--primary-color)' : 'var(--text-secondary)',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontWeight: 500,
+                  fontSize: '0.85rem'
+                }}
+              >
+                Import Cookies
+              </button>
+              <button 
+                onClick={() => setCookiesModalTab('export')}
+                style={{
+                  padding: '0.5rem 1rem',
+                  backgroundColor: cookiesModalTab === 'export' ? 'rgba(99, 102, 241, 0.15)' : 'transparent',
+                  border: cookiesModalTab === 'export' ? '1px solid rgba(99, 102, 241, 0.3)' : '1px solid transparent',
+                  color: cookiesModalTab === 'export' ? 'var(--primary-color)' : 'var(--text-secondary)',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontWeight: 500,
+                  fontSize: '0.85rem'
+                }}
+              >
+                Export Cookies
+              </button>
+            </div>
+
+            {/* Error alerts inside Modal */}
+            {cookiesError && (
+              <div className="error-alert" style={{ marginBottom: '1rem' }}>
+                <span>⚠</span>
+                <span>{cookiesError}</span>
+              </div>
+            )}
+
+            {/* Modal Body */}
+            <div style={{ flex: 1, overflowY: 'auto', minHeight: '250px' }}>
+              {cookiesLoading ? (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '250px', color: 'var(--text-secondary)' }}>
+                  <div className="status-dot online" style={{ width: '12px', height: '12px', marginBottom: '0.5rem' }} />
+                  <div>Processing cookies... (Puppeteer Headless running)</div>
+                </div>
+              ) : cookiesModalTab === 'view' ? (
+                cookiesList.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
+                    No cookies found in this profile. Cookies are populated automatically when you browse, or you can import them.
+                  </div>
+                ) : (
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem', textAlign: 'left' }}>
+                      <thead>
+                        <tr style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.1)', color: 'var(--text-secondary)' }}>
+                          <th style={{ padding: '0.5rem' }}>Domain</th>
+                          <th style={{ padding: '0.5rem' }}>Name</th>
+                          <th style={{ padding: '0.5rem' }}>Value</th>
+                          <th style={{ padding: '0.5rem' }}>Secure</th>
+                          <th style={{ padding: '0.5rem' }}>HttpOnly</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {cookiesList.map((cookie, idx) => (
+                          <tr key={idx} style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.05)' }}>
+                            <td style={{ padding: '0.5rem', color: '#a5b4fc', fontWeight: 500 }}>{cookie.domain}</td>
+                            <td style={{ padding: '0.5rem', color: '#fff' }}>{cookie.name}</td>
+                            <td style={{ padding: '0.5rem', color: 'rgba(255, 255, 255, 0.5)', fontFamily: 'monospace' }}>
+                              {cookie.value.length > 25 ? `${cookie.value.substring(0, 25)}...` : cookie.value}
+                            </td>
+                            <td style={{ padding: '0.5rem' }}>{cookie.secure ? '🔒 Yes' : 'No'}</td>
+                            <td style={{ padding: '0.5rem' }}>{cookie.httpOnly ? '🛡️ Yes' : 'No'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )
+              ) : cookiesModalTab === 'import' ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                  <label style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Paste cookie JSON array below:</label>
+                  <textarea 
+                    value={cookieImportText}
+                    onChange={(e) => setCookieImportText(e.target.value)}
+                    placeholder='[\n  {\n    "name": "session_id",\n    "value": "xyz123...",\n    "domain": ".google.com",\n    "path": "/",\n    "secure": true,\n    "httpOnly": true\n  }\n]'
+                    style={{
+                      width: '100%',
+                      height: '180px',
+                      backgroundColor: 'rgba(0, 0, 0, 0.3)',
+                      color: '#fff',
+                      border: '1px solid rgba(255, 255, 255, 0.1)',
+                      borderRadius: '4px',
+                      padding: '0.5rem',
+                      fontSize: '0.75rem',
+                      fontFamily: 'monospace',
+                      resize: 'none',
+                      outline: 'none'
+                    }}
+                  />
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.5rem' }}>
+                    <button 
+                      type="button"
+                      onClick={handleImportCookies}
+                      className="btn btn-primary"
+                      disabled={!cookieImportText.trim() || cookiesLoading}
+                      style={{ padding: '0.5rem 1.25rem', fontSize: '0.85rem', backgroundColor: 'var(--primary-color)' }}
+                    >
+                      📥 Import Sesi Cookies
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '200px', gap: '1rem' }}>
+                  <div style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', textAlign: 'center', maxWidth: '400px' }}>
+                    Export cookies from this profile to a `.json` backup file. You can import this file into any other profile.
+                  </div>
+                  <button 
+                    type="button"
+                    onClick={handleExportCookies}
+                    className="btn"
+                    disabled={cookiesList.length === 0}
+                    style={{
+                      padding: '0.6rem 1.5rem',
+                      fontSize: '0.85rem',
+                      background: 'rgba(16, 185, 129, 0.1)',
+                      border: '1px solid rgba(16, 185, 129, 0.2)',
+                      color: '#10b981',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.5rem',
+                      fontWeight: 600
+                    }}
+                  >
+                    💾 Download JSON Cookies ({cookiesList.length} items)
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
