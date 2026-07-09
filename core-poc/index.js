@@ -3,73 +3,75 @@ const StealthPlugin = require('puppeteer-extra-plugin-stealth');
 puppeteer.use(StealthPlugin());
 
 async function run() {
-  const proxyHost = '127.0.0.1'; // Ganti dengan IP Proxy Anda
-  const proxyPort = '8080';
-  const proxyUser = 'username';
-  const proxyPass = 'password';
-  const useProxy = false; // Set ke true jika Anda ingin menguji dengan proxy aktif
-  
-  // Custom Fingerprint Parameters (Contoh)
+  const proxyHost = process.env.PROXY_HOST || '127.0.0.1';
+  const proxyPort = process.env.PROXY_PORT || '8080';
+  const proxyUser = process.env.PROXY_USER || '';
+  const proxyPass = process.env.PROXY_PASS || '';
+  const useProxy = process.env.PROXY_ENABLED === 'true' || false;
+  const headless = process.env.HEADLESS === 'true' || false;
+
   const customUserAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
 
-  let launchArgs = [
+  const launchArgs = [
     '--no-sandbox',
     '--disable-setuid-sandbox',
     '--disable-infobars',
     '--window-position=0,0',
-    '--ignore-certifcate-errors',
-    '--ignore-certifcate-errors-spki-list',
+    '--ignore-certificate-errors',
+    '--ignore-certificate-errors-spki-list',
   ];
 
   if (useProxy) {
     launchArgs.push(`--proxy-server=${proxyHost}:${proxyPort}`);
   }
 
-  console.log('Menjalankan Chromium dengan Stealth Plugin...');
+  console.log('Launching Chromium with Stealth Plugin...');
 
-  const browser = await puppeteer.launch({
-    headless: false, // Set ke false agar kita bisa melihat UI browser
-    args: launchArgs,
-  });
-
-  const page = await browser.newPage();
-
-  // Autentikasi Proxy jika diperlukan
-  if (useProxy && proxyUser && proxyPass) {
-    await page.authenticate({
-      username: proxyUser,
-      password: proxyPass,
+  let browser;
+  try {
+    browser = await puppeteer.launch({
+      headless,
+      args: launchArgs,
     });
+
+    const page = await browser.newPage();
+
+    if (useProxy && proxyUser && proxyPass) {
+      await page.authenticate({ username: proxyUser, password: proxyPass });
+    }
+
+    await page.setUserAgent(customUserAgent);
+
+    const client = await page.target().createCDPSession();
+    await client.send('Page.addScriptToEvaluateOnNewDocument', {
+      source: `
+        Object.defineProperty(navigator, 'hardwareConcurrency', {
+          get: () => 8,
+        });
+        Object.defineProperty(navigator, 'deviceMemory', {
+          get: () => 16,
+        });
+      `,
+    });
+
+    console.log('Opening detection test page (Sannysoft Bot Test)...');
+    await page.goto('https://bot.sannysoft.com/', { waitUntil: 'networkidle2' });
+
+    await page.screenshot({ path: 'stealth-test-result.png', fullPage: true });
+    console.log('Screenshot saved to stealth-test-result.png');
+
+    console.log('Browser will remain open for 30 seconds for inspection.');
+    await new Promise((r) => setTimeout(r, 30000));
+  } catch (err) {
+    console.error('POC run failed:', err.message || err);
+  } finally {
+    if (browser) {
+      await browser.close();
+      console.log('Browser closed.');
+    }
   }
 
-  // Mengubah User Agent
-  await page.setUserAgent(customUserAgent);
-
-  // Manipulasi ekstra via CDP (Contoh: Timpa hardware concurrency)
-  const client = await page.target().createCDPSession();
-  await client.send('Page.addScriptToEvaluateOnNewDocument', {
-    source: `
-      Object.defineProperty(navigator, 'hardwareConcurrency', {
-        get: () => 8, // Mengatur jumlah core CPU ke 8
-      });
-      Object.defineProperty(navigator, 'deviceMemory', {
-        get: () => 16, // Mengatur jumlah RAM ke 16GB
-      });
-    `
-  });
-
-  console.log('Membuka halaman tes deteksi (Sannysoft Bot Test)...');
-  await page.goto('https://bot.sannysoft.com/', { waitUntil: 'networkidle2' });
-  
-  // Tunggu agar pengguna bisa melihat hasilnya, atau simpan screenshot
-  await page.screenshot({ path: 'stealth-test-result.png', fullPage: true });
-  console.log('Screenshot hasil deteksi telah disimpan di stealth-test-result.png');
-
-  console.log('Browser akan tetap terbuka selama 30 detik untuk Anda tinjau.');
-  await new Promise(r => setTimeout(r, 30000));
-
-  await browser.close();
-  console.log('Selesai.');
+  console.log('Done.');
 }
 
 run().catch(console.error);

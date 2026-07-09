@@ -13,59 +13,55 @@ export function useProfiles() {
       setError(null);
       const data = await ApiService.getAllProfiles();
       setProfiles(data);
-    } catch (err: any) {
-      setError(err.message || 'Unknown error occurred');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Unknown error occurred';
+      setError(message);
     } finally {
       setLoading(false);
     }
   }, []);
 
   const createProfile = async (data: CreateProfileDto) => {
-    try {
-      setError(null);
-      const newProfile = await ApiService.createProfile(data);
-      setProfiles((prev) => [...prev, newProfile]);
-    } catch (err: any) {
-      setError(err.message || 'Failed to create profile');
-      throw err;
-    }
+    setError(null);
+    const newProfile = await ApiService.createProfile(data);
+    setProfiles((prev) => [...prev, newProfile]);
   };
 
   const launchProfile = async (id: string) => {
-    try {
-      setError(null);
-      await ApiService.launchProfile(id);
-    } catch (err: any) {
-      setError(err.message || 'Failed to launch profile');
-      throw err;
-    }
+    setError(null);
+    await ApiService.launchProfile(id);
+  };
+
+  const closeProfile = async (id: string) => {
+    setError(null);
+    await ApiService.closeProfile(id);
   };
 
   const deleteProfile = async (id: string) => {
-    try {
-      setError(null);
-      await ApiService.deleteProfile(id);
-      setProfiles((prev) => prev.filter((p) => p.id !== id));
-    } catch (err: any) {
-      setError(err.message || 'Failed to delete profile');
-      throw err;
-    }
+    setError(null);
+    await ApiService.deleteProfile(id);
+    setProfiles((prev) => prev.filter((p) => p.id !== id));
   };
 
   const updateProfileNotes = async (id: string, notes: string) => {
-    try {
-      setError(null);
-      const updatedProfile = await ApiService.updateProfileNotes(id, notes);
-      setProfiles((prev) => prev.map((p) => p.id === id ? updatedProfile : p));
-    } catch (err: any) {
-      setError(err.message || 'Failed to update profile notes');
-      throw err;
-    }
+    setError(null);
+    const updatedProfile = await ApiService.updateProfileNotes(id, notes);
+    setProfiles((prev) => prev.map((p) => p.id === id ? updatedProfile : p));
   };
 
   useEffect(() => {
     fetchProfiles();
   }, [fetchProfiles]);
 
-  return { profiles, loading, error, createProfile, launchProfile, deleteProfile, updateProfileNotes, refresh: fetchProfiles };
+  return {
+    profiles,
+    loading,
+    error,
+    createProfile,
+    launchProfile,
+    closeProfile,
+    deleteProfile,
+    updateProfileNotes,
+    refresh: fetchProfiles,
+  };
 }

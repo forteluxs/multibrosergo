@@ -1,50 +1,60 @@
 #!/usr/bin/env bash
 
-# multibrosergo Startup Script
 echo "==========================================="
 echo "  multibrosergo Bootstrapper"
 echo "==========================================="
 
-# Check Node.js installation
 if ! command -v node &> /dev/null; then
-    echo "Error: Node.js is not installed! Please install it first."
+    echo "Error: Node.js is not installed!"
     exit 1
 fi
 
-# Ensure Puppeteer Chromium browser is installed
-echo "[1/3] Checking Chromium browser in cache..."
+NODE_VERSION=$(node -v | cut -d'v' -f2 | cut -d'.' -f1)
+if [ "$NODE_VERSION" -lt 18 ]; then
+    echo "Error: Node.js 18+ required (found v$(node -v))"
+    exit 1
+fi
+
+echo "[1/4] Installing backend dependencies..."
+(cd backend && npm install --silent 2>/dev/null)
+
+echo "[2/4] Installing frontend dependencies..."
+(cd ui && npm install --silent 2>/dev/null)
+
+echo "[3/4] Checking Chromium browser in cache..."
 if [ ! -d "$HOME/.cache/puppeteer" ]; then
     echo "Chromium browser not found, installing..."
-    npx puppeteer browsers install chrome
+    (cd backend && npx puppeteer browsers install chrome)
 else
     echo "Chromium browser cache verified."
 fi
 
-# Kill any existing processes running on ports 4000 or 1420
-echo "Cleaning up any old server instances..."
+# Kill old processes on the target ports
+echo "Cleaning up old server instances..."
 fuser -k 4000/tcp >/dev/null 2>&1
 fuser -k 1420/tcp >/dev/null 2>&1
 
-# Start Backend Sidecar Server
-echo "[2/3] Starting Express Sidecar API on port 4000..."
-nohup node backend/server.js > backend-server.log 2>&1 &
+echo "[4/4] Starting servers..."
+export NO_SANDBOX=true
+
+cd backend && NO_SANDBOX=true node server.js > ../backend-server.log 2>&1 &
 BACKEND_PID=$!
+cd ..
 echo "Backend running (PID: $BACKEND_PID). Logs: backend-server.log"
 
-# Start Frontend Dev Server
-echo "[3/3] Starting Vite Dev Server on port 1420..."
-cd ui
-nohup npm run dev > ../frontend-server.log 2>&1 &
+cd ui && npx vite --port 1420 > ../frontend-server.log 2>&1 &
 FRONTEND_PID=$!
 cd ..
 echo "Frontend running (PID: $FRONTEND_PID). Logs: frontend-server.log"
 
-# Wait a brief moment for servers to spin up
+echo "$BACKEND_PID $FRONTEND_PID" > .app.pids
+
 sleep 2
 
 echo "==========================================="
-echo "🚀 Application Initialized Successfully!"
-echo "👉 Dashboard URL: http://localhost:1420"
-echo "👉 Backend API:   http://localhost:4000"
+echo "Application Initialized Successfully!"
+echo "Dashboard: http://localhost:1420"
+echo "Backend API: http://localhost:4000"
 echo "==========================================="
-echo "To shut down all active servers, run: kill $BACKEND_PID $FRONTEND_PID"
+echo "To shut down: kill $BACKEND_PID $FRONTEND_PID"
+echo "(also saved to .app.pids)"

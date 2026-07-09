@@ -7,9 +7,14 @@ npm-debug.log*
 
 # Databases and sessions
 *.sqlite
+*.sqlite-shm
+*.sqlite-wal
 *.db
 backend/database/profiles.sqlite
 .multibrowser/
+
+# App-generated state
+.app.pids
 
 # Secrets and credentials
 secrets.txt

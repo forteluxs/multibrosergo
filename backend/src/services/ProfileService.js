@@ -1,73 +1,19 @@
+const fs = require('fs');
+const path = require('path');
 const Profile = require('../entities/Profile');
 const { v4: uuidv4 } = require('uuid');
-const http = require('http');
+const { NotFoundError } = require('../errors');
+const { DeviceType } = require('../constants/DeviceType');
+const config = require('../config');
 
-function getProxyIpInfo(host, port) {
-  return new Promise((resolve) => {
-    const options = {
-      host: host,
-      port: port,
-      path: 'http://ip-api.com/json',
-      headers: {
-        Host: 'ip-api.com'
-      },
-      timeout: 2500
-    };
-    
-    http.get(options, (res) => {
-      let data = '';
-      res.on('data', (chunk) => { data += chunk; });
-      res.on('end', () => {
-        try {
-          const json = JSON.parse(data);
-          resolve({ 
-            ip: json.query || host, 
-            country: json.country || 'Unknown',
-            lat: json.lat || null,
-            lon: json.lon || null
-          });
-        } catch (e) {
-          resolve({ ip: host, country: 'Unknown', lat: null, lon: null });
-        }
-      });
-    }).on('error', () => {
-      resolve({ ip: host, country: 'Offline/Unknown', lat: null, lon: null });
-    });
-  });
-}
-
-function getDirectIpInfo() {
-  return new Promise((resolve) => {
-    http.get('http://ip-api.com/json', (res) => {
-      let data = '';
-      res.on('data', (chunk) => { data += chunk; });
-      res.on('end', () => {
-        try {
-          const json = JSON.parse(data);
-          resolve({ 
-            ip: json.query || 'Direct', 
-            country: json.country || 'Local',
-            lat: json.lat || null,
-            lon: json.lon || null
-          });
-        } catch (e) {
-          resolve({ ip: 'Direct', country: 'Local', lat: null, lon: null });
-        }
-      });
-    }).on('error', () => {
-      resolve({ ip: 'Direct', country: 'Local', lat: null, lon: null });
-    });
-  });
-}
-
-/**
- * ProfileService
- * Handles business logic related to Profiles.
- * Adheres to Dependency Inversion by depending on IProfileRepository abstraction.
- */
 class ProfileService {
-  constructor(profileRepository) {
+  /**
+   * @param {IProfileRepository} profileRepository
+   * @param {IIpGeoResolver} ipGeoResolver
+   */
+  constructor(profileRepository, ipGeoResolver) {
     this.profileRepository = profileRepository;
+    this.ipGeoResolver = ipGeoResolver;
   }
 
   async createProfile(data) {
@@ -75,10 +21,10 @@ class ProfileService {
     let resolvedCountry = 'Local';
     let resolvedLat = null;
     let resolvedLon = null;
-    
+
     if (data.proxy_host && data.proxy_port) {
       try {
-        const info = await getProxyIpInfo(data.proxy_host, parseInt(data.proxy_port, 10));
+        const info = await this.ipGeoResolver.resolveViaProxy(data.proxy_host, data.proxy_port);
         resolvedIp = info.ip;
         resolvedCountry = info.country;
         resolvedLat = info.lat;
@@ -86,23 +32,28 @@ class ProfileService {
       } catch (e) {
         resolvedIp = data.proxy_host;
         resolvedCountry = 'Error';
+        console.warn('[ProfileService] Failed to resolve proxy geo:', e.message);
       }
     } else {
       try {
-        const info = await getDirectIpInfo();
+        const info = await this.ipGeoResolver.resolveDirect();
         resolvedIp = info.ip;
         resolvedCountry = info.country;
         resolvedLat = info.lat;
         resolvedLon = info.lon;
-      } catch (e) {}
+      } catch (e) {
+        console.warn('[ProfileService] Failed to resolve direct geo:', e.message);
+      }
     }
 
-    // Generate simple defaults for fingerprint if not provided
-    const newProfile = new Profile({
+    const port = data.proxy_port != null ? parseInt(data.proxy_port, 10) : null;
+
+    const profile = new Profile({
       id: uuidv4(),
       name: data.name || 'New Profile',
+      device_type: data.device_type || DeviceType.DESKTOP,
       proxy_host: data.proxy_host || null,
-      proxy_port: data.proxy_port ? parseInt(data.proxy_port, 10) : null,
+      proxy_port: isNaN(port) ? null : port,
       proxy_user: data.proxy_user || null,
       proxy_pass: data.proxy_pass || null,
       user_agent: data.user_agent || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -117,27 +68,50 @@ class ProfileService {
       audio_noise: data.audio_noise || 'disabled',
       latitude: resolvedLat,
       longitude: resolvedLon,
-      notes: data.notes || ''
+      notes: data.notes || '',
     });
 
-    return await this.profileRepository.save(newProfile);
+    return this.profileRepository.save(profile);
   }
 
   async updateProfileNotes(id, notes) {
+    const existing = await this.profileRepository.findById(id);
+    if (!existing) {
+      throw new NotFoundError('Profile');
+    }
     await this.profileRepository.update(id, { notes });
-    return await this.profileRepository.findById(id);
+    return this.profileRepository.findById(id);
   }
 
   async getAllProfiles() {
-    return await this.profileRepository.findAll();
+    return this.profileRepository.findAll();
   }
 
   async getProfileById(id) {
-    return await this.profileRepository.findById(id);
+    const profile = await this.profileRepository.findById(id);
+    if (!profile) {
+      throw new NotFoundError('Profile');
+    }
+    return profile;
   }
 
   async deleteProfile(id) {
-    return await this.profileRepository.delete(id);
+    const profile = await this.profileRepository.findById(id);
+    if (!profile) {
+      throw new NotFoundError('Profile');
+    }
+
+    const userDataDir = path.join(config.puppeteer.userDataDirBase, id);
+    try {
+      if (fs.existsSync(userDataDir)) {
+        fs.rmSync(userDataDir, { recursive: true, force: true });
+        console.log(`[ProfileService] Cleaned up profile directory: ${userDataDir}`);
+      }
+    } catch (e) {
+      console.warn(`[ProfileService] Failed to clean up ${userDataDir}:`, e.message);
+    }
+
+    return this.profileRepository.delete(id);
   }
 }
 

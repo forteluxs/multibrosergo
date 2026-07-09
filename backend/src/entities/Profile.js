@@ -1,15 +1,18 @@
+const { DeviceType } = require('../constants/DeviceType');
+
 /**
  * Profile Entity
  * Represents the core domain model for a Browser Profile.
  */
 class Profile {
   constructor({
-    id, name, proxy_host, proxy_port, proxy_user, proxy_pass,
+    id, name, device_type, proxy_host, proxy_port, proxy_user, proxy_pass,
     user_agent, screen_resolution, webgl_vendor, timezone, webrtc_mode, created_at,
     ip_address, country, canvas_noise, audio_noise, latitude, longitude, notes
   }) {
     this.id = id;
     this.name = name;
+    this.device_type = device_type || DeviceType.DESKTOP;
     this.proxy_host = proxy_host;
     this.proxy_port = proxy_port;
     this.proxy_user = proxy_user;

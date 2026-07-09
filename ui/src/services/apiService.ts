@@ -1,17 +1,25 @@
-import { Profile, CreateProfileDto } from '../types/Profile';
+import { Profile, CreateProfileDto, CookieItem } from '../types/Profile';
 
-const apiHost = typeof window !== 'undefined' && window.location && window.location.hostname ? window.location.hostname : 'localhost';
-const API_BASE_URL = `http://${apiHost}:4000/api/profiles`;
+function resolveApiHost(): string {
+  if (import.meta.env.VITE_API_BASE_URL) {
+    return import.meta.env.VITE_API_BASE_URL;
+  }
+  const hostname = typeof window !== 'undefined' && window.location?.hostname
+    ? window.location.hostname
+    : 'localhost';
+  const protocol = import.meta.env.VITE_API_PROTOCOL || 'http';
+  return `${protocol}://${hostname}:4000/api/profiles`;
+}
 
-/**
- * ApiService encapsulates all HTTP communications.
- * This ensures DRY and SoC principles.
- */
+const API_BASE_URL = resolveApiHost();
+const PROXY_API_BASE_URL = API_BASE_URL.replace(/\/api\/profiles$/, '/api/proxy');
+
 export const ApiService = {
   async getAllProfiles(): Promise<Profile[]> {
     const response = await fetch(API_BASE_URL);
     if (!response.ok) {
-      throw new Error(`Failed to fetch profiles: ${response.statusText}`);
+      const body = await response.json().catch(() => null);
+      throw new Error(body?.error || `Failed to fetch profiles: ${response.statusText}`);
     }
     return response.json();
   },
@@ -23,7 +31,8 @@ export const ApiService = {
       body: JSON.stringify(data),
     });
     if (!response.ok) {
-      throw new Error(`Failed to create profile: ${response.statusText}`);
+      const body = await response.json().catch(() => null);
+      throw new Error(body?.error || `Failed to create profile: ${response.statusText}`);
     }
     return response.json();
   },
@@ -33,9 +42,20 @@ export const ApiService = {
       method: 'POST',
     });
     if (!response.ok) {
-      throw new Error(`Failed to launch profile: ${response.statusText}`);
+      const body = await response.json().catch(() => null);
+      throw new Error(body?.error || `Failed to launch profile: ${response.statusText}`);
     }
     return response.json();
+  },
+
+  async closeProfile(id: string): Promise<void> {
+    const response = await fetch(`${API_BASE_URL}/${id}/close`, {
+      method: 'POST',
+    });
+    if (!response.ok) {
+      const body = await response.json().catch(() => null);
+      throw new Error(body?.error || `Failed to close profile: ${response.statusText}`);
+    }
   },
 
   async deleteProfile(id: string): Promise<{ message: string; id: string }> {
@@ -43,15 +63,17 @@ export const ApiService = {
       method: 'DELETE',
     });
     if (!response.ok) {
-      throw new Error(`Failed to delete profile: ${response.statusText}`);
+      const body = await response.json().catch(() => null);
+      throw new Error(body?.error || `Failed to delete profile: ${response.statusText}`);
     }
     return response.json();
   },
 
   async fetchFreeProxy(): Promise<{ host: string; port: number }> {
-    const response = await fetch(`${API_BASE_URL}/free-proxy`);
+    const response = await fetch(`${PROXY_API_BASE_URL}/free-proxy`);
     if (!response.ok) {
-      throw new Error(`Failed to fetch free proxy: ${response.statusText}`);
+      const body = await response.json().catch(() => null);
+      throw new Error(body?.error || `Failed to fetch free proxy: ${response.statusText}`);
     }
     return response.json();
   },
@@ -63,27 +85,30 @@ export const ApiService = {
       body: JSON.stringify({ notes }),
     });
     if (!response.ok) {
-      throw new Error(`Failed to update profile notes: ${response.statusText}`);
+      const body = await response.json().catch(() => null);
+      throw new Error(body?.error || `Failed to update notes: ${response.statusText}`);
     }
     return response.json();
   },
 
-  async getProfileCookies(id: string): Promise<any[]> {
+  async getProfileCookies(id: string): Promise<CookieItem[]> {
     const response = await fetch(`${API_BASE_URL}/${id}/cookies`);
     if (!response.ok) {
-      throw new Error(`Failed to fetch cookies: ${response.statusText}`);
+      const body = await response.json().catch(() => null);
+      throw new Error(body?.error || `Failed to fetch cookies: ${response.statusText}`);
     }
     return response.json();
   },
 
-  async setProfileCookies(id: string, cookies: any[]): Promise<void> {
+  async setProfileCookies(id: string, cookies: CookieItem[]): Promise<void> {
     const response = await fetch(`${API_BASE_URL}/${id}/cookies`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ cookies }),
     });
     if (!response.ok) {
-      throw new Error(`Failed to import cookies: ${response.statusText}`);
+      const body = await response.json().catch(() => null);
+      throw new Error(body?.error || `Failed to import cookies: ${response.statusText}`);
     }
-  }
+  },
 };
