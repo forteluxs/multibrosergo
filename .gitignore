@@ -11,6 +11,13 @@ npm-debug.log*
 backend/database/profiles.sqlite
 .multibrowser/
 
+# Secrets and credentials
+secrets.txt
+*.pem
+*.key
+.env
+.env.*
+
 # Build outputs
 dist/
 build/
