@@ -4,11 +4,10 @@ function resolveApiHost(): string {
   if (import.meta.env.VITE_API_BASE_URL) {
     return import.meta.env.VITE_API_BASE_URL;
   }
-  const hostname = typeof window !== 'undefined' && window.location?.hostname
-    ? window.location.hostname
-    : 'localhost';
-  const protocol = import.meta.env.VITE_API_PROTOCOL || 'http';
-  return `${protocol}://${hostname}:4000/api/profiles`;
+  if (typeof window !== 'undefined' && window.location?.protocol === 'file:') {
+    return 'http://localhost:4000/api/profiles';
+  }
+  return '/api/profiles';
 }
 
 const API_BASE_URL = resolveApiHost();

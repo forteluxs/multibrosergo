@@ -56,7 +56,8 @@ class DesktopBrowserManager extends IBrowserManager {
       '--no-first-run',
       '--no-default-browser-check',
       '--homepage=about:blank',
-      '--disable-features=ChromeWhatsNewUI,PrivacySandboxSettings4'
+      '--disable-features=ChromeWhatsNewUI,PrivacySandboxSettings4',
+      '--disable-blink-features=AutomationControlled'
     );
 
     if (profile.webrtc_mode === 'blocked') {
@@ -65,6 +66,9 @@ class DesktopBrowserManager extends IBrowserManager {
 
     const langCode = resolveLanguageCode(profile.country);
     args.push(`--lang=${langCode}`);
+
+    const { width, height } = this._parseResolution(profile.screen_resolution);
+    args.push(`--window-size=${width},${height}`);
 
     this._loadExtensions(args);
 
@@ -76,6 +80,8 @@ class DesktopBrowserManager extends IBrowserManager {
       headless: config.puppeteer.headless,
       userDataDir,
       args,
+      ignoreDefaultArgs: ['--enable-automation'],
+      defaultViewport: null,
     });
 
     this._browsers.set(profile.id, browser);
@@ -102,8 +108,6 @@ class DesktopBrowserManager extends IBrowserManager {
     const webgl = resolveWebGL(profile.webgl_vendor);
     const platformName = resolvePlatform(profile.user_agent);
     const brandName = resolveBrand(profile.user_agent);
-
-    const { width, height } = this._parseResolution(profile.screen_resolution);
 
     const injectionSource = buildInjectionScript({
       width,
@@ -198,8 +202,10 @@ class DesktopBrowserManager extends IBrowserManager {
   }
 
   async _emulateViewport(page, profile) {
-    const { width, height } = this._parseResolution(profile.screen_resolution);
-    await page.setViewport({ width, height });
+    if (config.puppeteer.headless) {
+      const { width, height } = this._parseResolution(profile.screen_resolution);
+      await page.setViewport({ width, height });
+    }
   }
 
   async _emulateGeolocation(browser, page, profile) {

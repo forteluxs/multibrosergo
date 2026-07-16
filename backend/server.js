@@ -16,8 +16,8 @@ app.use('/api/proxy', container.get('proxyRoutes'));
 
 app.use(errorHandler);
 
-const server = app.listen(config.port, () => {
-  console.log(`[Backend] Sidecar Server running on http://localhost:${config.port}`);
+const server = app.listen(config.port, '0.0.0.0', () => {
+  console.log(`[Backend] Sidecar Server running on http://0.0.0.0:${config.port}`);
 });
 
 async function shutdown(signal) {
@@ -29,6 +29,14 @@ async function shutdown(signal) {
     console.log('[Backend] All browsers closed.');
   } catch (e) {
     console.error('[Backend] Error closing browsers:', e.message);
+  }
+
+  try {
+    const profileRepository = container.get('profileRepository');
+    await profileRepository.close();
+    console.log('[Backend] Database connection closed.');
+  } catch (e) {
+    console.error('[Backend] Error closing database:', e.message);
   }
 
   server.close(() => {

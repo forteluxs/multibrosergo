@@ -1,0 +1,50 @@
+{
+  "name": "multibrosergo",
+  "version": "1.0.0",
+  "description": "Multi-browser Anti-detect Desktop App",
+  "main": "main.js",
+  "scripts": {
+    "postinstall": "electron-builder install-app-deps",
+    "dev": "electron . --development",
+    "build:ui": "cd ui && npm run build",
+    "dist": "npm run build:ui && electron-builder"
+  },
+  "dependencies": {
+    "cors": "^2.8.6",
+    "express": "^5.2.1",
+    "puppeteer": "25.1.0",
+    "puppeteer-extra": "3.3.6",
+    "puppeteer-extra-plugin-stealth": "2.11.2",
+    "sqlite3": "^6.0.1",
+    "uuid": "^14.0.0",
+    "zod": "^4.2.1"
+  },
+  "devDependencies": {
+    "@electron/rebuild": "^3.6.0",
+    "electron": "^31.0.2",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "com.antigravity.multibrosergo",
+    "productName": "MultibrowserGo",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "backend/**/*",
+      "ui/dist/**/*",
+      "package.json"
+    ],
+    "asar": true,
+    "asarUnpack": [
+      "backend/**/*"
+    ],
+    "win": {
+      "target": "nsis"
+    },
+    "linux": {
+      "target": "AppImage"
+    }
+  }
+}

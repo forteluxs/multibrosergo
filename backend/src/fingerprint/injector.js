@@ -71,6 +71,7 @@ function buildInjectionScript({
   const e = (v) => JSON.stringify(v);
 
   return [
+    `Object.defineProperty(navigator, 'webdriver', { get: () => undefined });`,
     `Object.defineProperty(navigator, 'hardwareConcurrency', { get: () => 8 });`,
     `Object.defineProperty(navigator, 'deviceMemory', { get: () => 8 });`,
     ``,

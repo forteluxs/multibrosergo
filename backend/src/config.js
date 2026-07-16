@@ -4,9 +4,7 @@ const config = {
   port: parseInt(process.env.PORT, 10) || 4000,
 
   cors: {
-    origins: process.env.CORS_ORIGINS
-      ? process.env.CORS_ORIGINS.split(',')
-      : ['http://localhost:1420', 'http://localhost:3000', 'http://127.0.0.1:1420'],
+    origins: true,
   },
 
   database: {
