@@ -1,7 +1,7 @@
 const path = require('path');
 const config = require('./config');
 
-const SQLiteProfileRepository = require('./repositories/SQLiteProfileRepository');
+const JSONProfileRepository = require('./repositories/JSONProfileRepository');
 const ProfileService = require('./services/ProfileService');
 const DesktopBrowserManager = require('./services/DesktopBrowserManager');
 const NotImplementedBrowserManager = require('./services/NotImplementedBrowserManager');
@@ -49,7 +49,7 @@ function createContainer() {
   const container = new Container();
 
   container.bind('profileRepository', (c) => {
-    return new SQLiteProfileRepository(config.database.path);
+    return new JSONProfileRepository(config.database.path);
   });
 
   container.bind('ipGeoResolver', () => new IpGeoResolver());
