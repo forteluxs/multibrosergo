@@ -61,14 +61,14 @@ function createWindow() {
   const distPath = path.join(__dirname, 'ui/dist/index.html');
 
   if (isDev) {
-    mainWindow.loadURL('http://localhost:1420').catch(() => {
-      console.warn('[Electron] Could not connect to http://localhost:1420, falling back to static build...');
-      const fs = require('fs');
-      if (fs.existsSync(distPath)) {
-        mainWindow.loadFile(distPath);
-      }
+    const http = require('http');
+    const req = http.get('http://localhost:1420', () => {
+      if (mainWindow) mainWindow.loadURL('http://localhost:1420');
     });
-    mainWindow.webContents.openDevTools();
+    req.on('error', () => {
+      if (mainWindow) mainWindow.loadFile(distPath);
+    });
+    req.end();
   } else {
     // Serve static Vite files
     mainWindow.loadFile(distPath);
