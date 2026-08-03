@@ -17,8 +17,14 @@ class JSONProfileRepository extends IProfileRepository {
       if (!fs.existsSync(dir)) {
         fs.mkdirSync(dir, { recursive: true });
       }
+      const projectDbPath = path.resolve(__dirname, '..', '..', 'database', 'profiles.json');
       if (!fs.existsSync(this.filePath)) {
-        fs.writeFileSync(this.filePath, JSON.stringify([], null, 2), 'utf8');
+        if (fs.existsSync(projectDbPath)) {
+          fs.copyFileSync(projectDbPath, this.filePath);
+          console.log('[JSONProfileRepository] Migrated profiles from project database.');
+        } else {
+          fs.writeFileSync(this.filePath, JSON.stringify([], null, 2), 'utf8');
+        }
       }
     } catch (err) {
       console.error('[JSONProfileRepository] Init error:', err.message);
