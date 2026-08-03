@@ -49,6 +49,10 @@ class DesktopBrowserManager extends IBrowserManager {
     args.push(
       '--no-sandbox',
       '--disable-setuid-sandbox',
+      '--disable-gpu',
+      '--disable-dev-shm-usage',
+      '--disable-software-rasterizer',
+      '--disable-accelerated-2d-canvas',
       '--disable-infobars',
       '--ignore-certificate-errors',
       '--ignore-certificate-errors-spki-list',
