@@ -174,23 +174,7 @@ class DesktopBrowserManager extends IBrowserManager {
   async _emulateTimezone(page, profile) {
     let timezone = profile.timezone;
     if (!timezone || timezone === 'auto') {
-      try {
-        const response = await page.evaluate(async () => {
-          try {
-            const res = await fetch('http://ip-api.com/json');
-            return await res.json();
-          } catch {
-            return null;
-          }
-        });
-        timezone = (response && response.timezone) ? response.timezone : 'UTC';
-        if (response && response.timezone) {
-          console.log(`[DesktopBrowserManager] Auto-detected timezone: ${timezone}`);
-        }
-      } catch (e) {
-        console.warn('[DesktopBrowserManager] Failed to auto-detect timezone:', e.message);
-        timezone = 'UTC';
-      }
+      timezone = 'Asia/Jakarta';
     }
 
     try {
@@ -215,17 +199,6 @@ class DesktopBrowserManager extends IBrowserManager {
     if (isNaN(lat) || isNaN(lon)) return;
 
     try {
-      const context = browser.defaultBrowserContext();
-      const hosts = [
-        'https://www.google.com',
-        'https://browserleaks.com',
-        'https://whoer.net',
-        'https://iplocation.net',
-        'https://ip-api.com',
-      ];
-      for (const host of hosts) {
-        await context.overridePermissions(host, ['geolocation']);
-      }
       await page.setGeolocation({ latitude: lat, longitude: lon, accuracy: 100 });
       console.log(`[DesktopBrowserManager] Geolocation set to: ${lat}, ${lon}`);
     } catch (e) {
