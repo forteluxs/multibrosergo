@@ -14,7 +14,7 @@ const config = {
   puppeteer: {
     userDataDirBase: path.join(require('os').homedir(), '.multibrowser', 'profiles'),
     headless: process.env.HEADLESS === 'true' || false,
-    sandbox: process.env.NO_SANDBOX !== 'true',
+    sandbox: false,
   },
 
   proxy: {

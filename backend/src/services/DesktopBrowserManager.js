@@ -46,10 +46,9 @@ class DesktopBrowserManager extends IBrowserManager {
     const userDataDir = path.join(config.puppeteer.userDataDirBase, profile.id);
     const args = [];
 
-    if (!config.puppeteer.sandbox) {
-      args.push('--no-sandbox', '--disable-setuid-sandbox');
-    }
     args.push(
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
       '--disable-infobars',
       '--ignore-certificate-errors',
       '--ignore-certificate-errors-spki-list',
