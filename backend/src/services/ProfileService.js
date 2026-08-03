@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
+const { randomUUID } = require('crypto');
 const Profile = require('../entities/Profile');
-const { v4: uuidv4 } = require('uuid');
 const { NotFoundError } = require('../errors');
 const { DeviceType } = require('../constants/DeviceType');
 const config = require('../config');
@@ -49,7 +49,7 @@ class ProfileService {
     const port = data.proxy_port != null ? parseInt(data.proxy_port, 10) : null;
 
     const profile = new Profile({
-      id: uuidv4(),
+      id: randomUUID(),
       name: data.name || 'New Profile',
       device_type: data.device_type || DeviceType.DESKTOP,
       proxy_host: data.proxy_host || null,
